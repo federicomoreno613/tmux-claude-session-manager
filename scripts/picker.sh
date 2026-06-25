@@ -1,39 +1,26 @@
 #!/usr/bin/env bash
 # Interactive picker for running Codex and Claude sessions.
-#   picker.sh           fzf picker; enter jumps/resumes the selected session.
-#   picker.sh --list    print rows only (used by fzf ctrl-x reload).
+#   picker.sh              fzf picker; enter jumps/resumes the selected session.
+#   picker.sh --list       plain rows (used by the dashboard; fast, no context).
+#   picker.sh --list-rich  rows + a description column (status + engram summary).
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=helpers.sh
 . "$DIR/helpers.sh"
+# shellcheck source=rows.sh
+. "$DIR/rows.sh"
 
-emit_rows() {
-  local now s state at path icon rank ago tool
-  now=$(date +%s)
-  tmux list-sessions -F '#{session_name}' 2>/dev/null | while IFS= read -r s; do
-    is_managed_session_name "$s" || continue
-    tool=$(session_tool "$s")
-    state=$(tmux show-options -qv -t "$s" @ai_state 2>/dev/null)
-    [ -z "$state" ] && state=$(tmux show-options -qv -t "$s" "@${tool}_state" 2>/dev/null)
-    at=$(tmux show-options -qv -t "$s" @ai_state_at 2>/dev/null)
-    [ -z "$at" ] && at=$(tmux show-options -qv -t "$s" "@${tool}_state_at" 2>/dev/null)
-    path=$(tmux display-message -p -t "$s" '#{pane_current_path}' 2>/dev/null)
-    case "$state" in
-      waiting) icon=$'\033[33m●\033[0m waiting' rank=0 ;; # yellow - needs input
-      idle) icon=$'\033[32m●\033[0m idle   ' rank=1 ;;    # green  - done, your turn
-      working) icon=$'\033[31m●\033[0m working' rank=3 ;; # red    - busy, leave it
-      *) icon=$'\033[90m●\033[0m   ?    ' rank=2 ;;       # grey   - unknown/no hook yet
-    esac
-    if [ -n "$at" ]; then ago="$(((now - at) / 60))m"; else ago='-'; fi
-    # rank \t session \t tool \t icon \t age \t path  (rank/session hidden via --with-nth)
-    printf '%s\t%s\t%-6s\t%s\t%5s\t%s\n' "$rank" "$s" "$tool" "$icon" "$ago" "${path/#$HOME/~}"
-  done | sort -t$'\t' -k1,1n -k5,5n
+# Append a 7th field per row: a compact description (engram summary or badges).
+# Kept out of --list so the 2s dashboard refresh stays cheap.
+emit_rows_rich() {
+  emit_rows | while IFS=$'\t' read -r rank session tool icon age path; do
+    desc=$(python3 "$DIR/context.py" --row "$path" 2>/dev/null | tr '\t\n' '  ')
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$rank" "$session" "$tool" "$icon" "$age" "$path" "$desc"
+  done
 }
 
-[ "${1:-}" = '--list' ] && {
-  emit_rows
-  exit 0
-}
+[ "${1:-}" = '--list' ] && { emit_rows; exit 0; }
+[ "${1:-}" = '--list-rich' ] && { emit_rows_rich; exit 0; }
 
 if ! command -v fzf >/dev/null 2>&1; then
   tmux display-message "tmux-ai-session-manager: fzf is required for the picker"
@@ -42,10 +29,10 @@ fi
 
 self="${BASH_SOURCE[0]}"
 export FZF_DEFAULT_OPTS=''
-sel=$(emit_rows | fzf --ansi --delimiter='\t' --with-nth=3,4,5,6 \
-  --reverse --cycle --header='AI sessions · enter: jump · ctrl-x: kill' \
-  --preview="tmux capture-pane -ept {2}" --preview-window='right,62%,wrap' \
-  --bind="ctrl-x:execute-silent(tmux kill-session -t {2})+reload($self --list)")
+sel=$(emit_rows_rich | fzf --ansi --delimiter='\t' --with-nth=4,3,6,7 \
+  --reverse --cycle --header='enter: ir · ctrl-x: matar · esc: salir · escribí para filtrar' \
+  --preview="$DIR/preview.sh {2} {6}" --preview-window='right,55%,wrap' \
+  --bind="ctrl-x:execute-silent(tmux kill-session -t {2})+reload($self --list-rich)")
 
 [ -z "$sel" ] && exit 0
 target=$(printf '%s' "$sel" | cut -f2)

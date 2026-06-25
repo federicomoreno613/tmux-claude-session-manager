@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# Project navigator / hub (prefix p): fuzzy-pick a project by name (or path),
+# ranked by priority, decorated with the live state of its AI session (if any).
+#   - the list is ranked by the priorities digest (most important first), so
+#     navigating it IS reading the priorities;
+#   - a leading ● shows the session state for that project (waiting/working/
+#     idle/live), blank if no session is running;
+#   - enter JUMPS to the project's session if one exists, else opens a terminal;
+#   - ctrl-t cycles P1/P2/P3, ctrl-o writes a forward-looking note (HIL), ctrl-f calls
+#     FirstMate with the selected project context, ctrl-e "encargar" injects a
+#     dispatch-authorization envelope so FirstMate works on it. Type to filter.
+set -uo pipefail
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+self="${BASH_SOURCE[0]}"
+# shellcheck source=helpers.sh
+. "$DIR/helpers.sh"
+# shellcheck source=rows.sh
+. "$DIR/rows.sh"
+
+# Emit annotated rows: name \t path \t session \t display. `display` is the
+# aligned pretty column prefixed with a colored state dot. `session` is the live
+# tmux session for that project dir (empty if none) so enter can jump to it.
+emit_annotated() {
+  local rows states
+  rows="$(python3 "$DIR/projects.py" 2>/dev/null)"        # name path count pretty
+  [ -z "$rows" ] && return 0
+  states="$(emit_rows 2>/dev/null)"                        # rank session tool icon age path
+  awk -F'\t' -v OFS='\t' -v home="$HOME" '
+    function abspath(p) { return (substr(p,1,1)=="~") ? home substr(p,2) : p }
+    FNR==NR {                       # states: keep lowest-rank (most urgent) per path
+      k=abspath($6)
+      if (!(k in r) || $1 < r[k]) { r[k]=$1; s[k]=$2 }
+      next
+    }
+    {                               # project rows: name(1) path(2) count(3) pretty(4)
+      k=abspath($2)
+      rank = (k in r) ? r[k] : -1
+      sess = (k in s) ? s[k] : ""
+      if      (rank==0) dot="\033[33m●\033[0m"   # waiting - needs you
+      else if (rank==1) dot="\033[32m●\033[0m"   # idle - your turn
+      else if (rank==2) dot="\033[90m●\033[0m"   # unknown
+      else if (rank==3) dot="\033[31m●\033[0m"   # working
+      else if (rank==4) dot="\033[36m●\033[0m"   # live (unmanaged)
+      else              dot=" "                    # no session
+      print $1, $2, sess, dot " " $4
+    }
+  ' <(printf '%s\n' "$states") <(printf '%s\n' "$rows")
+}
+
+# Reload entry point (called by fzf binds so the list re-ranks/re-decorates live).
+[ "${1:-}" = "--rows" ] && { emit_annotated; exit 0; }
+
+if ! command -v fzf >/dev/null 2>&1; then
+  tmux display-message "tmux-ai-session-manager: fzf is required"
+  exit 0
+fi
+
+annotated="$(emit_annotated)"
+if [ -z "$annotated" ]; then
+  tmux display-message "No hay proyectos conocidos todavía (engram sin sesiones)"
+  exit 0
+fi
+
+# FirstMate context injection is handled by firstmate-project.sh.
+header='PRIORIDADES (mayor→menor) · ● = sesión viva (🟡 te espera · 🔴 trabajando · 🟢 listo · 🔵 a mano)'
+footer='enter: saltar/abrir · ctrl-f: FirstMate · ctrl-e: encargar · ctrl-r: reiniciar FirstMate · ctrl-t: prioridad · ctrl-o: nota · shift-↑↓: scroll · esc: salir'
+pin_bind="ctrl-t:execute-silent(python3 $DIR/digest.py --cycle-prio {1})+reload($self --rows)"
+note_bind="ctrl-o:execute($DIR/note-edit.sh {1})+reload($self --rows)"
+fm_bind="ctrl-f:become($DIR/firstmate-project.sh {1} {2})"
+# ctrl-e: "encargar" - prompt a concrete task + scope, inject a structured
+# dispatch-authorization envelope (FirstMate decides/executes). Left unsent.
+enc_bind="ctrl-e:become($DIR/firstmate-project.sh --dispatch {1} {2})"
+# ctrl-r: restart FirstMate fresh (kills its session, re-injects context). Safe
+# because durable state lives in engram + firstmate/data/.
+fmr_bind="ctrl-r:become($DIR/firstmate-project.sh --restart {1} {2})"
+# Read the full summary: scroll the preview (shift-↑/↓) and toggle a tall preview
+# (ctrl-y) when a status/Next Step is long.
+scroll_bind="shift-up:preview-up,shift-down:preview-down,ctrl-y:change-preview-window(down,80%|down,45%)"
+
+# Display the decorated column (field 4); search over name + path (fields 1,2).
+# Preview passes the session (field 3) so it shows the live screen when present.
+sel="$(printf '%s\n' "$annotated" | fzf --ansi --delimiter='\t' \
+  --with-nth=4 --nth=1,2 \
+  --reverse --cycle --header="$header" --footer="$footer" \
+  --bind="$pin_bind" --bind="$note_bind" --bind="$fm_bind" --bind="$enc_bind" --bind="$fmr_bind" --bind="$scroll_bind" \
+  --preview="$DIR/preview-project.sh {1} {3} {2}" --preview-window='down,45%,wrap')"
+
+[ -z "$sel" ] && exit 0
+path="$(printf '%s' "$sel" | cut -f2)"
+session="$(printf '%s' "$sel" | cut -f3)"
+name="$(printf '%s' "$sel" | cut -f1)"
+case "$path" in "~"*) path="$HOME${path#\~}" ;; esac
+
+# Smart enter: jump to the live session if one exists, else open a terminal.
+if [ -n "$session" ] && tmux has-session -t "$session" 2>/dev/null; then
+  exec tmux attach-session -t "$session"
+fi
+[ -d "$path" ] || { tmux display-message "No existe: $path"; exit 0; }
+tmux new-window -n "$name" -c "$path"

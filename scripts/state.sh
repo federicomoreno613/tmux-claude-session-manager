@@ -30,6 +30,18 @@ session=$(tmux display-message -p -t "$TMUX_PANE" '#{session_name}' 2>/dev/null)
 [ -z "$session" ] && exit 0
 
 now="$(date +%s)"
+
+# Edge-triggered desktop notification: fire once on the transition INTO waiting.
+# Read the previous state BEFORE overwriting so repeated 'waiting' writes (hook
+# re-fires) do not re-notify. Gated by @ai_notify (default on).
+prev="$(tmux show-options -qv -t "$session" @ai_state 2>/dev/null)"
+if [ "$state" = "waiting" ] && [ "$prev" != "waiting" ]; then
+  if [ "$(get_tmux_option @ai_notify 'on')" = "on" ]; then
+    path="$(tmux display-message -p -t "$session" '#{pane_current_path}' 2>/dev/null)"
+    "$DIR/notify.sh" "AI · necesita input" "$tool · ${path/#$HOME/~}" >/dev/null 2>&1 &
+  fi
+fi
+
 # Generic options used by this fork.
 tmux set-option -t "$session" @ai_tool "$tool"
 tmux set-option -t "$session" @ai_state "$state"

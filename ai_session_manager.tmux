@@ -11,6 +11,10 @@ CURRENT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 codex_launch_key="$(get_tmux_option @codex_launch_key 'x')"
 claude_launch_key="$(get_tmux_option @claude_launch_key 'c')"
 list_key="$(get_tmux_option @ai_list_key 'u')"
+dashboard_key="$(get_tmux_option @ai_dashboard_key 'a')"
+jump_key="$(get_tmux_option @ai_jump_key 'g')"
+layout_key="$(get_tmux_option @ai_layout_key 'Space')"
+projects_key="$(get_tmux_option @ai_projects_key 'p')"
 
 # Backward-compatible alias for people who still set the original option.
 legacy_list_key="$(get_tmux_option @claude_list_key '')"
@@ -27,3 +31,36 @@ tmux bind-key "$claude_launch_key" \
 # list.sh closes that popup first so the picker opens full-size on the host.
 tmux bind-key "$list_key" \
   run-shell "$CURRENT_DIR/scripts/list.sh '#{client_name}'"
+
+# Persistent cockpit panel in a dedicated split pane (prefix a).
+dashboard_split="$(get_tmux_option @ai_dashboard_split '-h')"
+dashboard_size="$(get_tmux_option @ai_dashboard_size '40%')"
+tmux bind-key "$dashboard_key" \
+  split-window "$dashboard_split" -l "$dashboard_size" "exec $CURRENT_DIR/scripts/dashboard.py"
+
+# Jump straight to the next session waiting for input (prefix g — Go).
+tmux bind-key "$jump_key" \
+  run-shell "$CURRENT_DIR/scripts/jump-waiting.sh"
+
+# One-key IDE layout: work pane + spare terminal + cockpit (prefix Space).
+tmux bind-key "$layout_key" \
+  run-shell "$CURRENT_DIR/scripts/layout.sh '#{pane_current_path}'"
+
+# Project navigator: pick a known project by name and open a terminal there (prefix p).
+proj_w="$(get_tmux_option @ai_popup_width '80%')"
+proj_h="$(get_tmux_option @ai_popup_height '70%')"
+tmux bind-key "$projects_key" \
+  display-popup -w "$proj_w" -h "$proj_h" -E "$CURRENT_DIR/scripts/projects.sh"
+
+# Optional status-bar widget (opt-in via @ai_statusbar on). Prepends a compact
+# count to status-right without clobbering the user's existing value.
+if [ "$(get_tmux_option @ai_statusbar 'off')" = "on" ]; then
+  current_status_right="$(tmux show-option -gqv status-right)"
+  case "$current_status_right" in
+    *"$CURRENT_DIR/scripts/status.sh"*) ;;  # already wired, don't double-add
+    *)
+      tmux set-option -g status-interval "$(get_tmux_option @ai_status_interval '5')"
+      tmux set-option -g status-right "#($CURRENT_DIR/scripts/status.sh) ${current_status_right}"
+      ;;
+  esac
+fi
