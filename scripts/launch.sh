@@ -53,4 +53,11 @@ tmux set-option -t "$session" @ai_tool "$tool"
 # Keep the original Claude option for compatibility with upstream picker behavior.
 [ "$tool" = "claude" ] && [ -n "$window" ] && tmux set-option -t "$session" @claude_origin "$window"
 
+# No abrir un segundo popup espejo si la sesión ya está attachada en otro cliente.
+attached="$(tmux display-message -p -t "$session" '#{session_attached}' 2>/dev/null || echo 0)"
+if [ "${attached:-0}" -gt 0 ]; then
+  tmux display-message "Sesión $tool ya abierta (evito duplicar la pantalla)"
+  exit 0
+fi
+
 tmux display-popup -w "$w" -h "$h" -E "tmux attach-session -t '$session'"

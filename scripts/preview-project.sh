@@ -28,5 +28,5 @@ printf '\033[2m%s\033[0m\n' "─────────────────
 if [ -n "$session" ]; then
   tmux capture-pane -ept "$session" 2>/dev/null
 else
-  printf '\033[2m(sin sesión viva · enter abre terminal · ctrl-f llama a FirstMate con contexto)\033[0m\n'
+  printf '\033[2m(sin sesión viva · enter abre terminal · ctrl-f abre Hermes en el proyecto)\033[0m\n'
 fi

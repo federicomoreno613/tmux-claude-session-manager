@@ -6,9 +6,9 @@
 #   - a leading ● shows the session state for that project (waiting/working/
 #     idle/live), blank if no session is running;
 #   - enter JUMPS to the project's session if one exists, else opens a terminal;
-#   - ctrl-t cycles P1/P2/P3, ctrl-o writes a forward-looking note (HIL), ctrl-f calls
-#     FirstMate with the selected project context, ctrl-e "encargar" injects a
-#     dispatch-authorization envelope so FirstMate works on it. Type to filter.
+#   - ctrl-t cycles P1/P2/P3, ctrl-o writes a forward-looking note (HIL), and
+#     ctrl-f opens Hermes (tu orquestador/copiloto) en el directorio del proyecto
+#     — reemplaza el viejo dispatch a FirstMate. Type to filter.
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 self="${BASH_SOURCE[0]}"
@@ -61,19 +61,14 @@ if [ -z "$annotated" ]; then
   exit 0
 fi
 
-# FirstMate context injection is handled by firstmate-project.sh.
+# ctrl-f abre Hermes (orquestador/copiloto) en el proyecto — reemplaza el viejo
+# dispatch a FirstMate. Ver hermes-project.sh.
 header='PRIORIDADES (mayor→menor) · ● = sesión viva (🟡 te espera · 🔴 trabajando · 🟢 listo · 🔵 a mano)'
-footer='enter: saltar/abrir · ctrl-f: FirstMate · ctrl-e: encargar · ctrl-r: reiniciar FirstMate · ctrl-t: prioridad · ctrl-o: nota · shift-↑↓: scroll · esc: salir'
+footer='enter: saltar/abrir · ctrl-f: Hermes · ctrl-t: prioridad · ctrl-o: nota · shift-↑↓: scroll · esc: salir'
 # `test -n {1}` makes the bind a no-op on freshness separator rows (empty name).
 pin_bind="ctrl-t:execute-silent(test -n {1} && python3 $DIR/digest.py --cycle-prio {1})+reload($self --rows)"
 note_bind="ctrl-o:execute($DIR/note-edit.sh {1})+reload($self --rows)"
-fm_bind="ctrl-f:become($DIR/firstmate-project.sh {1} {2})"
-# ctrl-e: "encargar" - prompt a concrete task + scope, inject a structured
-# dispatch-authorization envelope (FirstMate decides/executes). Left unsent.
-enc_bind="ctrl-e:become($DIR/firstmate-project.sh --dispatch {1} {2})"
-# ctrl-r: restart FirstMate fresh (kills its session, re-injects context). Safe
-# because durable state lives in engram + firstmate/data/.
-fmr_bind="ctrl-r:become($DIR/firstmate-project.sh --restart {1} {2})"
+hermes_bind="ctrl-f:become($DIR/hermes-project.sh {1} {2})"
 # Read the full summary: scroll the preview (shift-↑/↓) and toggle a tall preview
 # (ctrl-y) when a status/Next Step is long.
 scroll_bind="shift-up:preview-up,shift-down:preview-down,ctrl-y:change-preview-window(down,80%|down,45%)"
@@ -83,7 +78,7 @@ scroll_bind="shift-up:preview-up,shift-down:preview-down,ctrl-y:change-preview-w
 sel="$(printf '%s\n' "$annotated" | fzf --ansi --delimiter='\t' \
   --with-nth=4 --nth=1,2 \
   --reverse --cycle --header="$header" --footer="$footer" \
-  --bind="$pin_bind" --bind="$note_bind" --bind="$fm_bind" --bind="$enc_bind" --bind="$fmr_bind" --bind="$scroll_bind" \
+  --bind="$pin_bind" --bind="$note_bind" --bind="$hermes_bind" --bind="$scroll_bind" \
   --preview="$DIR/preview-project.sh {1} {3} {2}" --preview-window='down,45%,wrap')"
 
 [ -z "$sel" ] && exit 0
@@ -94,9 +89,21 @@ name="$(printf '%s' "$sel" | cut -f1)"
 [ -z "$path" ] && exit 0
 case "$path" in "~"*) path="$HOME${path#\~}" ;; esac
 
-# Smart enter: jump to the live session if one exists, else open a terminal.
+# Smart enter (sin duplicados): 1) salta a la sesión de agente viva si existe;
+# 2) si no, reusa una ventana que ya esté en ese path; 3) si no, abre una nueva.
 if [ -n "$session" ] && tmux has-session -t "$session" 2>/dev/null; then
   exec tmux attach-session -t "$session"
 fi
 [ -d "$path" ] || { tmux display-message "No existe: $path"; exit 0; }
-tmux new-window -n "$name" -c "$path"
+
+# Reusar una ventana existente cuyo pane activo ya esté en $path (mata las
+# "pestañas repetidas con la misma pantalla"). Prioriza la marcada @ai_project.
+existing="$(tmux list-panes -a \
+  -F '#{pane_active}|#{session_name}:#{window_index}|#{pane_current_path}|#{@ai_project}' 2>/dev/null \
+  | awk -F'|' -v p="$path" '$1==1 && ($4==p || $3==p){print $2; exit}')"
+if [ -n "$existing" ]; then
+  tmux switch-client -t "$existing" 2>/dev/null || tmux select-window -t "$existing"
+  exit 0
+fi
+wid="$(tmux new-window -P -F '#{window_id}' -n "$name" -c "$path")"
+[ -n "$wid" ] && tmux set-option -w -t "$wid" @ai_project "$path"

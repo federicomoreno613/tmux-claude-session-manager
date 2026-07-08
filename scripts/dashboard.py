@@ -133,7 +133,9 @@ def render(rows, attached, width):
         for r in rest:
             lines.extend(fmt_row(r, attached, width, highlight=False))
 
-    # Optional FirstMate section (opt-in via @ai_firstmate on).
+    # Optional FirstMate section — DEPRECADO (2026-07-08): FirstMate quedó
+    # reemplazado por Hermes como orquestador. Se deja gateado en off por
+    # @ai_firstmate (default off) y no se usa; sobrevive por si se reactiva.
     if _firstmate and tmux_opt("@ai_firstmate", "off") == "on":
         fm = _firstmate.get_firstmate(tmux_opt("@ai_firstmate_path", "") or None)
         if fm is not None:

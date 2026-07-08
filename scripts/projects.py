@@ -10,7 +10,6 @@ paths — everything comes from the local engram DB at runtime.
 
 CLI: prints TSV rows -> name \\t path(~) \\t count \\t summary
 """
-import glob
 import os
 import sqlite3
 import subprocess
@@ -36,38 +35,12 @@ def _tmux_opt(name, default):
 
 
 def _crew_paths():
-    """Abs project paths that currently have a live FirstMate crew window (fm-*).
-    Maps live `fm-<id>` tmux windows to their project via FirstMate's
-    state/<id>.meta. Surfaces work FirstMate abstracts away from the captain."""
-    fmpath = os.path.expanduser(_tmux_opt("@ai_firstmate_path", os.path.join(HOME, "firstmate")))
-    statedir = os.path.join(fmpath, "state")
-    if not os.path.isdir(statedir):
-        return set()
-    try:
-        wins = subprocess.run(
-            ["tmux", "list-windows", "-a", "-F", "#{window_name}"],
-            capture_output=True, text=True, timeout=2,
-        ).stdout.split()
-    except Exception:
-        return set()
-    live_ids = {w[3:] for w in wins if w.startswith("fm-")}
-    if not live_ids:
-        return set()
-    out = set()
-    for meta in glob.glob(os.path.join(statedir, "*.meta")):
-        if os.path.basename(meta)[:-5] not in live_ids:
-            continue
-        try:
-            with open(meta, encoding="utf-8") as fh:
-                for ln in fh:
-                    if ln.startswith("project="):
-                        p = ln.split("=", 1)[1].strip()
-                        if p:
-                            out.add(os.path.abspath(p))
-                        break
-        except Exception:
-            pass
-    return out
+    """DEPRECADO (2026-07-08): FirstMate quedó reemplazado por Hermes como
+    orquestador, así que ya no hay ventanas `fm-*` que mapear. Devuelve vacío para
+    no escanear ~/firstmate en cada render del navegador. Se conserva la firma (y
+    el parámetro crew_active de _pretty) para no tocar el resto del pipeline: el
+    marcador 🤖 simplemente nunca aparece."""
+    return set()
 
 
 def _bucket(d):

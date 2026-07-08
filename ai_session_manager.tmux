@@ -52,6 +52,27 @@ proj_h="$(get_tmux_option @ai_popup_height '70%')"
 tmux bind-key "$projects_key" \
   display-popup -w "$proj_w" -h "$proj_h" -E "$CURRENT_DIR/scripts/projects.sh"
 
+# Navegación atrás/adelante tipo browser (prefix b / prefix f). El trail de
+# ventanas visitadas se alimenta por hooks; la lógica está en scripts/history.sh.
+back_key="$(get_tmux_option @ai_back_key 'b')"
+fwd_key="$(get_tmux_option @ai_fwd_key 'f')"
+tmux bind-key "$back_key" run-shell "$CURRENT_DIR/scripts/history.sh back"
+tmux bind-key "$fwd_key"  run-shell "$CURRENT_DIR/scripts/history.sh forward"
+# Overwrite (no -a) para ser idempotente al re-sourcear el tmux.conf.
+tmux set-hook -g after-select-window    "run-shell -b '$CURRENT_DIR/scripts/history.sh push'"
+tmux set-hook -g client-session-changed "run-shell -b '$CURRENT_DIR/scripts/history.sh push'"
+
+# Copilotos/servicios como ciudadanos de primera:
+#   prefix h -> Hermes (ventana dedicada, idempotente, persiste al detach)
+#   prefix o -> OpenClaw (TUI en popup contra el gateway persistente)
+hermes_key="$(get_tmux_option @ai_hermes_key 'h')"
+openclaw_key="$(get_tmux_option @ai_openclaw_key 'o')"
+openclaw_cmd="$(get_tmux_option @ai_openclaw_command 'openclaw tui')"
+oc_w="$(get_tmux_option @ai_popup_width '90%')"
+oc_h="$(get_tmux_option @ai_popup_height '90%')"
+tmux bind-key "$hermes_key" run-shell "$CURRENT_DIR/scripts/hermes.sh"
+tmux bind-key "$openclaw_key" display-popup -w "$oc_w" -h "$oc_h" -E "$openclaw_cmd"
+
 # Optional status-bar widget (opt-in via @ai_statusbar on). Prepends a compact
 # count to status-right without clobbering the user's existing value.
 if [ "$(get_tmux_option @ai_statusbar 'off')" = "on" ]; then

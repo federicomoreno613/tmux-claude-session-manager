@@ -40,7 +40,7 @@ _emit_managed() {
 _emit_unmanaged() {
   [ "$(get_tmux_option @ai_detect_unmanaged 'on')" = "on" ] || return 0
   local detect pid s cmd path icon c
-  detect="$(get_tmux_option @ai_detect_commands 'claude codex')"
+  detect="$(get_tmux_option @ai_detect_commands 'claude codex hermes')"
   # Query one field per call (tmux -F mangles embedded tabs); join with printf.
   tmux list-panes -a -F '#{pane_id}' 2>/dev/null | while IFS= read -r pid; do
     s=$(tmux display-message -p -t "$pid" '#{session_name}' 2>/dev/null)

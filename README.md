@@ -31,9 +31,21 @@ run-shell ~/.config/tmux/plugins/tmux-ai-session-manager/ai_session_manager.tmux
 
 | Key | Action |
 | --- | --- |
-| `prefix` + `x` | Launch or re-attach to a Codex session for the current directory |
-| `prefix` + `c` | Launch or re-attach to a Claude session for the current directory |
-| `prefix` + `u` | Open the unified session picker |
+| `prefix` + `c` | Launch or re-attach a **Claude** session for the current directory |
+| `prefix` + `x` | Launch or re-attach a **Codex** session for the current directory |
+| `prefix` + `u` | Unified session picker (Codex + Claude) |
+| `prefix` + `a` | **Cockpit**: live roster of every session/agent with state |
+| `prefix` + `g` | Jump to the next session that's `waiting` for input |
+| `prefix` + `Space` | One-key IDE layout (work pane + terminal + cockpit) |
+| `prefix` + `p` | Project navigator, ranked by the priorities digest |
+| `prefix` + `b` / `f` | **Back / forward** through visited windows (browser-style history) |
+| `prefix` + `h` | Open/reuse a **Hermes** window (organizer copilot) |
+| `prefix` + `o` | Open **OpenClaw** TUI (messaging gateway) in a popup |
+
+The cockpit shows two kinds of rows: **managed** sessions (launched with `c`/`x`, with
+precise `waiting`/`working`/`idle` state from hooks) and **live** agents (any `claude`,
+`codex` or `hermes` you run by hand in a pane, shown in cyan). Opening a project or launcher
+**jumps to an existing window/session** instead of duplicating it.
 
 Inside the picker:
 
@@ -53,8 +65,19 @@ Set options before loading `ai_session_manager.tmux`:
 set -g @codex_launch_key     'x'
 set -g @claude_launch_key    'c'
 set -g @ai_list_key          'u'
+set -g @ai_dashboard_key     'a'
+set -g @ai_jump_key          'g'
+set -g @ai_layout_key        'Space'
+set -g @ai_projects_key      'p'
+set -g @ai_back_key          'b'
+set -g @ai_fwd_key           'f'
+set -g @ai_hermes_key        'h'
+set -g @ai_openclaw_key      'o'
 set -g @codex_command        'codex'
 set -g @claude_command       'claude'
+set -g @ai_hermes_command    'hermes'
+set -g @ai_openclaw_command  'openclaw tui'
+set -g @ai_detect_commands   'claude codex hermes'
 set -g @codex_session_prefix 'codex-'
 set -g @claude_session_prefix 'claude-'
 set -g @ai_popup_width       '90%'
@@ -88,6 +111,10 @@ Recommended state machine:
 - The launching window is recorded in `@ai_origin` so the picker can jump back before reopening the popup.
 - Hooks stamp `@ai_state`, `@ai_state_at`, and `@ai_tool` onto each session.
 - The picker lists both managed prefixes and uses `tmux capture-pane` for live previews.
+- `history.sh` keeps a trail of visited windows in `@ai_hist`/`@ai_hist_idx` (fed by the
+  `after-select-window` / `client-session-changed` hooks) so `prefix b`/`f` walk back and forward.
+- The navigator and launchers reuse an existing window/session for a path (tagged `@ai_project`)
+  instead of opening duplicates.
 
 ## License
 
