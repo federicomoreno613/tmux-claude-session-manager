@@ -62,16 +62,18 @@ tmux bind-key "$fwd_key"  run-shell "$CURRENT_DIR/scripts/history.sh forward"
 tmux set-hook -g after-select-window    "run-shell -b '$CURRENT_DIR/scripts/history.sh push'"
 tmux set-hook -g client-session-changed "run-shell -b '$CURRENT_DIR/scripts/history.sh push'"
 
-# Copilotos/servicios como ciudadanos de primera:
-#   prefix h -> Hermes (ventana dedicada, idempotente, persiste al detach)
-#   prefix o -> OpenClaw (TUI en popup contra el gateway persistente)
+# Hermes como ciudadano de primera: prefix h abre/reusa una ventana dedicada
+# (idempotente, persiste al detach).
 hermes_key="$(get_tmux_option @ai_hermes_key 'h')"
-openclaw_key="$(get_tmux_option @ai_openclaw_key 'o')"
-openclaw_cmd="$(get_tmux_option @ai_openclaw_command 'openclaw tui')"
-oc_w="$(get_tmux_option @ai_popup_width '90%')"
-oc_h="$(get_tmux_option @ai_popup_height '90%')"
 tmux bind-key "$hermes_key" run-shell "$CURRENT_DIR/scripts/hermes.sh"
-tmux bind-key "$openclaw_key" display-popup -w "$oc_w" -h "$oc_h" -E "$openclaw_cmd"
+
+# Abrir el proyecto (dir del pane actual) en el editor o en Finder, sin soltar el
+# teclado:  prefix e -> VS Code (editor) ·  prefix o -> Finder (open).
+editor_key="$(get_tmux_option @ai_editor_key 'e')"
+finder_key="$(get_tmux_option @ai_finder_key 'o')"
+editor_cmd="$(get_tmux_option @ai_editor_command 'code')"
+tmux bind-key "$editor_key" run-shell "$editor_cmd '#{pane_current_path}'"
+tmux bind-key "$finder_key" run-shell "open '#{pane_current_path}'"
 
 # Optional status-bar widget (opt-in via @ai_statusbar on). Prepends a compact
 # count to status-right without clobbering the user's existing value.

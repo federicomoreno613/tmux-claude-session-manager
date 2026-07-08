@@ -40,7 +40,8 @@ run-shell ~/.config/tmux/plugins/tmux-ai-session-manager/ai_session_manager.tmux
 | `prefix` + `p` | Project navigator, ranked by the priorities digest |
 | `prefix` + `b` / `f` | **Back / forward** through visited windows (browser-style history) |
 | `prefix` + `h` | Open/reuse a **Hermes** window (organizer copilot) |
-| `prefix` + `o` | Open **OpenClaw** TUI (messaging gateway) in a popup |
+| `prefix` + `e` | Open the current project in **VS Code** (`code`) |
+| `prefix` + `o` | Open the current project in **Finder** (`open`) |
 
 The cockpit shows two kinds of rows: **managed** sessions (launched with `c`/`x`, with
 precise `waiting`/`working`/`idle` state from hooks) and **live** agents (any `claude`,
@@ -72,11 +73,12 @@ set -g @ai_projects_key      'p'
 set -g @ai_back_key          'b'
 set -g @ai_fwd_key           'f'
 set -g @ai_hermes_key        'h'
-set -g @ai_openclaw_key      'o'
+set -g @ai_editor_key        'e'
+set -g @ai_finder_key        'o'
 set -g @codex_command        'codex'
 set -g @claude_command       'claude'
 set -g @ai_hermes_command    'hermes'
-set -g @ai_openclaw_command  'openclaw tui'
+set -g @ai_editor_command    'code'
 set -g @ai_detect_commands   'claude codex hermes'
 set -g @codex_session_prefix 'codex-'
 set -g @claude_session_prefix 'claude-'
