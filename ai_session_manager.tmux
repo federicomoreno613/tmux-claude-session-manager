@@ -69,10 +69,10 @@ tmux bind-key "$hermes_key" run-shell "$CURRENT_DIR/scripts/hermes.sh"
 
 # Abrir el proyecto (dir del pane actual) en el editor o en Finder, sin soltar el
 # teclado:  prefix e -> VS Code (editor) ·  prefix o -> Finder (open).
+# open-editor.sh resuelve `code` de forma robusta (run-shell no siempre hereda tu PATH).
 editor_key="$(get_tmux_option @ai_editor_key 'e')"
 finder_key="$(get_tmux_option @ai_finder_key 'o')"
-editor_cmd="$(get_tmux_option @ai_editor_command 'code')"
-tmux bind-key "$editor_key" run-shell "$editor_cmd '#{pane_current_path}'"
+tmux bind-key "$editor_key" run-shell "$CURRENT_DIR/scripts/open-editor.sh '#{pane_current_path}'"
 tmux bind-key "$finder_key" run-shell "open '#{pane_current_path}'"
 
 # Optional status-bar widget (opt-in via @ai_statusbar on). Prepends a compact

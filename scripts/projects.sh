@@ -64,11 +64,13 @@ fi
 # ctrl-f abre Hermes (orquestador/copiloto) en el proyecto — reemplaza el viejo
 # dispatch a FirstMate. Ver hermes-project.sh.
 header='PRIORIDADES (mayor→menor) · ● = sesión viva (🟡 te espera · 🔴 trabajando · 🟢 listo · 🔵 a mano)'
-footer='enter: saltar/abrir · ctrl-f: Hermes · ctrl-t: prioridad · ctrl-o: nota · shift-↑↓: scroll · esc: salir'
+footer='enter: saltar/abrir · ctrl-f: Hermes · ctrl-e: VS Code · ctrl-t: prioridad · ctrl-o: nota · shift-↑↓: scroll · esc: salir'
 # `test -n {1}` makes the bind a no-op on freshness separator rows (empty name).
 pin_bind="ctrl-t:execute-silent(test -n {1} && python3 $DIR/digest.py --cycle-prio {1})+reload($self --rows)"
 note_bind="ctrl-o:execute($DIR/note-edit.sh {1})+reload($self --rows)"
 hermes_bind="ctrl-f:become($DIR/hermes-project.sh {1} {2})"
+# ctrl-e: abrir el proyecto seleccionado en VS Code (sin cerrar el navegador).
+editor_bind="ctrl-e:execute-silent($DIR/open-editor.sh {2})"
 # Read the full summary: scroll the preview (shift-↑/↓) and toggle a tall preview
 # (ctrl-y) when a status/Next Step is long.
 scroll_bind="shift-up:preview-up,shift-down:preview-down,ctrl-y:change-preview-window(down,80%|down,45%)"
@@ -78,7 +80,7 @@ scroll_bind="shift-up:preview-up,shift-down:preview-down,ctrl-y:change-preview-w
 sel="$(printf '%s\n' "$annotated" | fzf --ansi --delimiter='\t' \
   --with-nth=4 --nth=1,2 \
   --reverse --cycle --header="$header" --footer="$footer" \
-  --bind="$pin_bind" --bind="$note_bind" --bind="$hermes_bind" --bind="$scroll_bind" \
+  --bind="$pin_bind" --bind="$note_bind" --bind="$hermes_bind" --bind="$editor_bind" --bind="$scroll_bind" \
   --preview="$DIR/preview-project.sh {1} {3} {2}" --preview-window='down,45%,wrap')"
 
 [ -z "$sel" ] && exit 0
