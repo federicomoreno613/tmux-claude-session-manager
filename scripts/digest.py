@@ -107,6 +107,29 @@ def _score(days, recent):
     return round(recency * 10.0 + float(recent), 3)
 
 
+def _ago(days):
+    """Human relative time ('recién' / 'hace 2h' / 'ayer' / 'hace 3d' / 'hace 2
+    sem' / 'hace 1 mes') from the digest's `days` float. Empty if unknown."""
+    try:
+        d = float(days)
+    except (TypeError, ValueError):
+        return ""
+    if d < 0 or d >= 9000:  # 9999 is _days_since's "unknown" sentinel
+        return ""
+    hours = d * 24.0
+    if hours < 1:
+        return "recién"
+    if d < 1:
+        return f"hace {int(hours)}h"
+    if d < 2:
+        return "ayer"
+    if d < 7:
+        return f"hace {int(d)}d"
+    if d < 30:
+        return f"hace {int(d / 7)} sem"
+    return f"hace {int(d / 30)} mes"
+
+
 def _compute():
     if not os.path.isfile(DB):
         return []
@@ -325,21 +348,25 @@ def detail(name):
     bits = []
     if prio:
         bits.append(f"{C['y']}{prio}{C['off']}")
+    ago = _ago(d.get("days"))
+    if ago:
+        bits.append(ago)
     bits.append(f"score {d['score']}")
     if d.get("recent"):
         bits.append(f"7d:{d['recent']}")
     if d.get("total"):
         bits.append(f"{d['total']} memorias")
     out.append(" · ".join(bits))
-    if d.get("note"):
-        out.append(f"{C['y']}✎ {d['note']}{C['off']}")
-    if d.get("line"):
-        out.append(f"↳ {d['line']}")  # full Next Step, untruncated
+    # "Qué hice" (backward) clearly separated from "qué quería hacer" (forward).
     titles = d.get("recent_titles") or []
     if titles:
-        out.append(f"{C['dim']}último en memoria:{C['off']}")
+        out.append(f"{C['hdr']}✓ lo último que hiciste{C['off']}")
         for t in titles:
             out.append(f"{C['dim']}  · {t}{C['off']}")
+    if d.get("note"):
+        out.append(f"{C['y']}✎ nota (tu intención): {d['note']}{C['off']}")
+    if d.get("line"):
+        out.append(f"{C['hdr']}↳ qué querías hacer{C['off']} {d['line']}")
     return "\n".join(out)
 
 

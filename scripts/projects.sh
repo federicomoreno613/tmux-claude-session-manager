@@ -64,7 +64,8 @@ fi
 # FirstMate context injection is handled by firstmate-project.sh.
 header='PRIORIDADES (mayor→menor) · ● = sesión viva (🟡 te espera · 🔴 trabajando · 🟢 listo · 🔵 a mano)'
 footer='enter: saltar/abrir · ctrl-f: FirstMate · ctrl-e: encargar · ctrl-r: reiniciar FirstMate · ctrl-t: prioridad · ctrl-o: nota · shift-↑↓: scroll · esc: salir'
-pin_bind="ctrl-t:execute-silent(python3 $DIR/digest.py --cycle-prio {1})+reload($self --rows)"
+# `test -n {1}` makes the bind a no-op on freshness separator rows (empty name).
+pin_bind="ctrl-t:execute-silent(test -n {1} && python3 $DIR/digest.py --cycle-prio {1})+reload($self --rows)"
 note_bind="ctrl-o:execute($DIR/note-edit.sh {1})+reload($self --rows)"
 fm_bind="ctrl-f:become($DIR/firstmate-project.sh {1} {2})"
 # ctrl-e: "encargar" - prompt a concrete task + scope, inject a structured
@@ -89,6 +90,8 @@ sel="$(printf '%s\n' "$annotated" | fzf --ansi --delimiter='\t' \
 path="$(printf '%s' "$sel" | cut -f2)"
 session="$(printf '%s' "$sel" | cut -f3)"
 name="$(printf '%s' "$sel" | cut -f1)"
+# A freshness separator row has no path: selecting it is a no-op.
+[ -z "$path" ] && exit 0
 case "$path" in "~"*) path="$HOME${path#\~}" ;; esac
 
 # Smart enter: jump to the live session if one exists, else open a terminal.
