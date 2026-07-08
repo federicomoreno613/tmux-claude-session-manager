@@ -76,30 +76,57 @@ def _goal(content):
     return ""
 
 
-def _dir_map():
-    """project -> real directory, from the engram sessions table (latest wins,
-    deduped by directory, only existing dirs). Same source as before."""
-    if not os.path.isfile(DB):
-        return {}
+EXTRA_PROJECTS_FILE = os.path.join(HOME, ".config", "ai", "projects.txt")
+
+
+def _extra_dirs():
+    """Proyectos registrados a mano en ~/.config/ai/projects.txt (una ruta absoluta
+    por línea, admite `# comentarios`). Permite sumar al navegador un repo que la
+    tabla de sesiones de engram todavía no conoce. Agregá uno con `ai-project-add`."""
+    out = {}
     try:
-        con = sqlite3.connect(f"file:{DB}?mode=ro", uri=True, timeout=1.0)
-        con.execute("PRAGMA busy_timeout=500")
-        cur = con.cursor()
-        rows = cur.execute(
-            "SELECT project, directory, MAX(started_at) AS t FROM sessions "
-            "WHERE directory IS NOT NULL AND directory<>'' "
-            "GROUP BY project ORDER BY t DESC"
-        ).fetchall()
-        con.close()
-        seen, out = set(), {}
-        for project, directory, _t in rows:
-            if not directory or not os.path.isdir(directory) or directory in seen:
-                continue
-            seen.add(directory)
-            out[project] = directory
-        return out
+        with open(EXTRA_PROJECTS_FILE, encoding="utf-8") as fh:
+            for ln in fh:
+                p = ln.split("#", 1)[0].strip()
+                if not p:
+                    continue
+                p = os.path.expanduser(p)
+                if os.path.isdir(p):
+                    out[os.path.basename(p.rstrip("/"))] = p
+    except FileNotFoundError:
+        pass
     except Exception:
-        return {}
+        pass
+    return out
+
+
+def _dir_map():
+    """project -> real directory. Base: tabla `sessions` de engram (última gana,
+    dedup por directorio, solo dirs existentes). Se le mergean los proyectos
+    manuales de ~/.config/ai/projects.txt para que un repo nuevo también aparezca."""
+    out, seen = {}, set()
+    if os.path.isfile(DB):
+        try:
+            con = sqlite3.connect(f"file:{DB}?mode=ro", uri=True, timeout=1.0)
+            con.execute("PRAGMA busy_timeout=500")
+            for project, directory, _t in con.execute(
+                "SELECT project, directory, MAX(started_at) AS t FROM sessions "
+                "WHERE directory IS NOT NULL AND directory<>'' "
+                "GROUP BY project ORDER BY t DESC"
+            ).fetchall():
+                if not directory or not os.path.isdir(directory) or directory in seen:
+                    continue
+                seen.add(directory)
+                out[project] = directory
+            con.close()
+        except Exception:
+            pass
+    for name, directory in _extra_dirs().items():
+        if directory in seen:
+            continue
+        seen.add(directory)
+        out.setdefault(name, directory)
+    return out
 
 
 def _header_row(label):
@@ -143,6 +170,12 @@ def rows():
 
     dmap = _dir_map()
     ranked = [d for d in digest.ranked() if d["project"] in dmap]
+    have = {d["project"] for d in ranked}
+    # Proyectos agregados a mano sin historial en engram: entrada mínima para que
+    # igual aparezcan (caen en el bucket "Antes" hasta que tengan actividad).
+    for project in dmap:
+        if project not in have:
+            ranked.append({"project": project, "total": 0})
     crew = _crew_paths()
     namew = min(20, max((len(d["project"]) for d in ranked), default=8))
     groups = {b: [] for b in BUCKETS}
