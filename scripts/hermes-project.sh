@@ -35,3 +35,15 @@ fi
 # Nueva ventana en el dir del proyecto → Hermes arranca con ese contexto/cwd.
 wid="$(tmux new-window -P -F '#{window_id}' -n "$win_name" -c "$path" "$cmd")"
 [ -n "$wid" ] && tmux set-option -w -t "$wid" @ai_project "$path"
+
+# Sembrar un pedido de "resumí etapas / dónde voy" para este proyecto. Se poll-espera
+# a que arranque el TUI de Hermes (un sleep fijo pierde el mensaje) y se inyecta.
+seed="Estoy trabajando en el proyecto '$name' ($path). Resumime, breve y accionable, en qué etapa estoy y las próximas 2-3, mirando el contexto real del repo (README, CLAUDE.md/AGENTS.md, docs/, git log reciente) y tu memoria. Sin relleno."
+i=0
+while [ "$i" -lt 30 ]; do
+  [ -n "$(tmux capture-pane -p -t "$wid" 2>/dev/null | tr -d '[:space:]')" ] && break
+  sleep 0.5; i=$((i + 1))
+done
+sleep 1
+tmux send-keys -t "$wid" -l "$seed"
+tmux send-keys -t "$wid" Enter

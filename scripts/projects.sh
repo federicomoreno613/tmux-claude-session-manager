@@ -64,7 +64,7 @@ fi
 # ctrl-f abre Hermes (orquestador/copiloto) en el proyecto — reemplaza el viejo
 # dispatch a FirstMate. Ver hermes-project.sh.
 header='PRIORIDADES (mayor→menor) · ● = sesión viva (🟡 te espera · 🔴 trabajando · 🟢 listo · 🔵 a mano)'
-footer='enter: saltar/abrir · ctrl-f: Hermes · ctrl-e: VS Code · ctrl-t: prioridad · ctrl-o: nota · shift-↑↓: scroll · esc: salir'
+footer='enter: saltar/abrir · ctrl-f: Hermes (etapas) · ctrl-e: VS Code · ctrl-t: prioridad · ctrl-o: nota · shift-↑↓: scroll · esc: salir'
 # `test -n {1}` makes the bind a no-op on freshness separator rows (empty name).
 pin_bind="ctrl-t:execute-silent(test -n {1} && python3 $DIR/digest.py --cycle-prio {1})+reload($self --rows)"
 note_bind="ctrl-o:execute($DIR/note-edit.sh {1})+reload($self --rows)"
